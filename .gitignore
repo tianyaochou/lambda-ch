@@ -1,0 +1,16 @@
+.DS_Store
+.idea
+*.log
+tmp/
+
+# Coq Project files
+.Makefile.coq.d
+Makefile.coq
+Makefile.coq.conf
+
+# Coq files
+*.glob
+*.vo
+*.vos
+*.vok
+*.aux

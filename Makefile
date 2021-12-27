@@ -1,6 +1,6 @@
 COQMFFLAGS := -Q . CHSTLC
 
-ALLVFILES := Maps.v Terms.v
+ALLVFILES := Maps.v Terms.v Config.v
 
 build: Makefile.coq
 	$(MAKE) -f Makefile.coq

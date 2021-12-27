@@ -1,6 +1,7 @@
 From Coq Require Import Strings.String.
 From Coq Require Import FSets.FMapList.
-From CHSTLC Require Import Maps.
+From CHSTLC Require Export Maps.
+From CHSTLC Require Import Id.
 
 Inductive ty : Type :=
 | Ty_Unit : ty
@@ -18,6 +19,7 @@ Inductive tm : Type :=
 | tm_give : tm -> tm -> tm
 | tm_take : tm -> tm
 | tm_mkch : ty -> tm
+| tm_ch : nat -> ty -> tm
 .
 
 Declare Custom Entry chstlc.
@@ -54,6 +56,7 @@ Notation "'unit'" := tm_unit (in custom chstlc at level 0).
 Inductive value : tm -> Prop :=
 | v_unit : value <{unit}>
 | v_abs : forall x T y, value <{\x : T, y}>
+| v_ch : forall n T, value (tm_ch n T)
 (* | v_var : forall x, value (tm_var x) *)
 .
 
@@ -78,6 +81,7 @@ Fixpoint subst (x : string) (s : tm) (t : tm) : tm :=
   | <{ take c }> => <{ take [x:=s]c }>
   | tm_give c v => <{ give [x:=s]c [x:=s]v }>
   | <{ fork f }> => <{ fork [x:=s]f }>
+  | tm_ch id T => t
   end
 
 where "'[' x ':=' s ']' t" := (subst x s t) (in custom chstlc).
@@ -149,6 +153,7 @@ Inductive has_type : context -> tm -> ty -> Prop :=
 | T_App : forall Gamma t1 t2 T1 T2, Gamma ⊢ t1 ∈ (Ty_Arrow T1 T2) -> Gamma ⊢ t2 ∈ T1 -> Gamma ⊢ t1 t2 ∈ T2
 | T_Let : forall Gamma x T1 T2 t1 t2, Gamma ⊢ t1 ∈ T1 -> (x |-> T1; Gamma) ⊢ t2 ∈ T2 -> Gamma ⊢ let x = t1 in t2 ∈ T2
 | T_NewCh : forall Gamma T, Gamma ⊢ newCh T ∈ Ch T
+| T_Ch : forall Gamma n T, has_type Gamma (tm_ch n T) (Ty_Ch T)
 | T_Take : forall Gamma c T, (Gamma ⊢ c ∈ Ch T) -> Gamma ⊢ take c ∈ T
 | T_Give : forall Gamma c t T, (Gamma ⊢ c ∈ Ch T) -> (Gamma ⊢ t ∈ T) -> has_type Gamma (tm_give c t) Ty_Unit
 | T_Fork : forall Gamma f T, has_type Gamma f (Ty_Arrow Ty_Unit T) -> Gamma ⊢ (fork f) ∈ Unit
@@ -162,7 +167,14 @@ Proof.
   intros. inversion H0; subst.
   - inversion H.
   - exists x0, y. inversion H. reflexivity.
+  - inversion H.
   (* - inversion H. inversion H3. *)
+Qed.
+
+Lemma canonical_channel : forall c T, empty ⊢ c ∈ (Ty_Ch T) -> value c -> exists n, c = tm_ch n T.
+Proof.
+  intros. inversion H0; subst; try inversion H; subst.
+  - exists n. reflexivity.
 Qed.
 
 Lemma unique_type : forall Gamma t T1 T2, Gamma ⊢ t ∈ T1 -> Gamma ⊢ t ∈ T2 -> T1 = T2.
@@ -174,6 +186,7 @@ Proof.
   - inversion H1; subst. inversion H1; subst. apply IHhas_type1 in H6. inversion H6; subst. reflexivity.
   - inversion H1; subst. apply IHhas_type1 in H7; subst. apply IHhas_type2 in H8. assumption.
   - inversion H0. reflexivity.
+  - inversion H0. reflexivity.
   - inversion H0; subst. apply IHhas_type in H3. inversion H3. reflexivity.
   - inversion H1. reflexivity.
   - inversion H0. reflexivity.
@@ -182,9 +195,9 @@ Qed.
 Theorem progress : forall t T, empty ⊢ t ∈ T ->
                                   value t \/ (exists t', step t t')
                                                   \/ exists E, (exists T, fillCtx E (tm_mkch T) t) \/
-                                                           (exists c, fillCtx E (tm_take c) t) \/
-                                                           (exists c v, fillCtx E (tm_give c v) t) \/
-                                                           (exists f, fillCtx E (tm_fork f) t)
+                                                           (exists c, fillCtx E (tm_take c) t /\ value c) \/
+                                                           (exists c v, fillCtx E (tm_give c v) t /\ value c /\ value v) \/
+                                                           (exists f, fillCtx E (tm_fork f) t /\ value f)
 .
 Proof.
   intros. remember empty.
@@ -198,17 +211,46 @@ Proof.
       * destruct H2. eauto 20.
       * right. destruct H2. destruct H2 as [[] |[[] |[[] |[] ]]];  eexists; [left | right; left | right; right; left | right; right; right]; eauto.
         { destruct H2. eauto. }
+        { destruct H2. destruct a as (a1 & a2 & a3). eauto 20. }
+        { destruct H2. eauto. }
     + destruct H1. destruct H1. left. eauto.
       destruct H1. right. destruct H1 as [[] |[[] |[[] |[] ]]]; eexists; [left | right; left | right; right; left | right; right; right]; eauto.
+      { destruct H1. eauto. }
+      { destruct H1 as (v & H1 & H2 & H3). eauto 20. }
       { destruct H1. eauto. }
   - right. destruct IHhas_type1; auto.
     + left. eauto.
     +  destruct H1 as [[]|]. left. eauto. right. destruct H1. destruct H1 as [[] |[[] |[[] |[] ]]]; eexists; [left | right; left | right; right; left | right; right; right]; eauto.
        { destruct H1. eauto. }
+       { destruct H1 as (v & H1 & H2 & H3). eauto 20. }
+       { destruct H1. eauto. }
   - right. right. eauto.
-  - right. right. eauto.
-  - right. right. eauto 20.
-  - right. right. eauto 20.
+  - left. auto.
+  - right. destruct IHhas_type as [|[|[]]]; eauto.
+    + eauto 20.
+    + destruct H0. eauto 20.
+    + right. destruct H0 as [[] |[[] |[[] |[] ]]]; eexists; [left | right; left | right; right; left | right; right; right]; eauto.
+      { destruct H0. eauto. }
+      { destruct H0 as (v & H1 & H2 & H3). eauto 20. }
+      { destruct H0. eauto. }
+  - right. destruct IHhas_type1; auto.
+    + destruct IHhas_type2; eauto.
+      * eauto 20.
+      * destruct H2. destruct H2. left. eauto. destruct H2. right. destruct H2 as [[] |[[] |[[] |[] ]]]; eexists; [left | right; left | right; right; left | right; right; right]; eauto.
+        { destruct H2. eauto. }
+        { destruct H2 as (v & H2 & H3 & H4). eauto 20. }
+        { destruct H2. eauto. }
+    + destruct H1. destruct H1. left. eauto. destruct H1. right. destruct H1 as [[] |[[] |[[] |[] ]]]; eexists; [left | right; left | right; right; left | right; right; right]; eauto.
+        { destruct H1. eauto. }
+        { destruct H1 as (v & H2 & H3 & H4). eauto 20. }
+        { destruct H1. eauto. }
+  - right. destruct IHhas_type as [|[|[]]]; eauto.
+    + eauto 20.
+    + destruct H0. eauto 20.
+    + right. destruct H0 as [[] |[[] |[[] |[] ]]]; eexists; [left | right; left | right; right; left | right; right; right]; eauto.
+      { destruct H0. eauto. }
+      { destruct H0 as (v & H1 & H2 & H3). eauto 20. }
+      { destruct H0. eauto. }
 Qed.
 
 Theorem weakening : forall Gamma Gamma' t T, inclusion Gamma Gamma' -> Gamma ⊢ t ∈ T -> Gamma' ⊢ t ∈ T.
@@ -241,6 +283,7 @@ Proof.
   - inversion H. simpl. eauto.
   - inversion H. simpl. eauto.
   - inversion H. simpl. eauto.
+  - inversion H; subst. simpl. auto.
 Qed.
 
 Theorem subterm_type : forall C Gamma t result T, fillCtx C t result -> Gamma ⊢ result ∈ T ->

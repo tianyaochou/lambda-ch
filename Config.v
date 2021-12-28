@@ -30,32 +30,26 @@ match chs with
 end.
 
 Inductive cfg_step : config -> config -> Prop :=
-| cs_give : forall E n T v result1 result2 chs thrds,
-    value v -> fillCtx E (tm_give (tm_ch n T) v) result1 ->
-    fillCtx E (tm_unit) result2 ->
-    n < length chs -> cfg_step (Config chs (result1 :: thrds)) (Config (give_chs n v chs) (result2 :: thrds))
-| cs_take : forall E n T result1 result2 chs thrds v t,
-    fillCtx E (tm_take (tm_ch n T)) result1 ->
-    fillCtx E v result2 ->
+| cs_give : forall n T v chs thrds,
+    value v -> n < length chs ->
+    cfg_step (Config chs ((tm_give (tm_ch n T) v) :: thrds)) (Config (give_chs n v chs) (tm_unit :: thrds))
+| cs_take : forall n T chs thrds v t,
     n < length chs -> nth_error chs n = Some (v :: t) ->
-    cfg_step (Config chs (result1 :: thrds)) (Config (update n t chs) (result2 :: thrds))
-| cs_fork : forall E t result1 result2 chs thrds,
-    fillCtx E (tm_fork t) result1 ->
-    fillCtx E (tm_unit) result2 ->
-    cfg_step (Config chs (result1 :: thrds)) (Config chs ([t; result2] ++ thrds))
-| cs_mkch : forall E T result1 result2 chs thrds,
-    fillCtx E (tm_mkch T) result1 ->
-    fillCtx E (tm_ch (length thrds) T) result2 ->
-    cfg_step (Config chs (result1 :: thrds)) (Config (chs ++ [[]]) (result2 :: thrds))
+    cfg_step (Config chs ((tm_take (tm_ch n T)) :: thrds)) (Config (update n t chs) (v :: thrds))
+| cs_fork : forall t chs thrds,
+    cfg_step (Config chs ((tm_fork t) :: thrds)) (Config chs (tm_unit :: (thrds ++ [t])))
+| cs_mkch : forall T chs thrds,
+    cfg_step (Config chs ((tm_mkch T) :: thrds)) (Config (chs ++ [[]]) ((tm_ch (length chs) T) :: thrds))
 | cs_term : forall E t1 t2 result1 result2 chs thrds,
     fillCtx E t1 result1 ->
     fillCtx E t2 result2 ->
     step t1 t2 ->
     cfg_step (Config chs (result1 :: thrds)) (Config chs (result2 :: thrds))
-| cs_sub : forall E t t' result result' chs chs' thrds, fillCtx E t result ->
-                                             fillCtx E t' result' ->
-                                             cfg_step (Config chs (t :: thrds)) (Config chs' (t' :: thrds)) ->
-                                             cfg_step (Config chs (result :: thrds)) (Config chs' (result' :: thrds))
+| cs_sub : forall E t t' result result' chs chs' thrds thrds',
+    fillCtx E t result ->
+    fillCtx E t' result' ->
+    cfg_step (Config chs (t :: thrds)) (Config chs' (t' :: thrds')) ->
+    cfg_step (Config chs (result :: thrds)) (Config chs' (result' :: thrds'))
 | cs_pop : forall v chs thrds,
     value v -> cfg_step (Config chs (v :: thrds)) (Config chs thrds)
 .
@@ -104,7 +98,7 @@ match c with
 | Config chs thrds => match thrds with
                      | [] => True
                      | h :: t => forall T, empty ⊢ h ∈ T -> channels_bounded h chs ->
-                                    (value h) \/ (exists h' chs', h' <> [] -> cfg_step c (Config chs' (h' ++ t))) \/
+                                    (value h) \/ (exists h' chs' t', cfg_step c (Config chs' (h' :: t'))) \/
                                       (exists E n T, fillCtx E (tm_take (tm_ch n T)) h ->
                                                 nth_error chs n = Some [])
                      end
@@ -114,9 +108,9 @@ end.
   assert (H' := H).
   apply progress in H. destruct H as [ | []].
   - auto.
-  - destruct H. right. left. exists [x], chs. simpl. eauto.
+  - destruct H. right. left. exists x, chs, thrds. simpl. eauto.
   - destruct H as [E H]. destruct H as [|[|[]]].
-    + destruct H. right. left. assert (H'' := H). eapply subterm_swap in H. destruct H. exists [x0]. simpl. eauto.
+    + destruct H. right. left. assert (H'' := H). eapply subterm_swap in H. destruct H. exists x0. simpl. eauto.
     + destruct H as (c & H & H1). assert (H'' := H).
       eapply subterm_type in H; eauto. destruct H. inversion H; subst.
       apply canonical_channel in H4; auto. destruct H4; subst. right. remember (nth_error chs x0).
@@ -127,34 +121,34 @@ end.
         }
         {
           left. assert (H''' := H''). apply subterm_swap with (t' := t0) in H'''. destruct H'''.
-          exists [x1]. simpl. eexists. intros. eapply cs_take. eapply H''. eapply H2. apply nth_error_some_length in Heqo. auto.
-          symmetry in Heqo. eapply Heqo.
+          exists x1. simpl. eexists. eexists. eapply cs_sub; eauto. eapply cs_take.
+          eapply subterm_bounded in H''; eauto. symmetry in Heqo. eauto.
         }
       * eapply subterm_bounded in H''; eauto. simpl in H''. symmetry in Heqo. apply nth_error_None in Heqo.
         lia.
     + destruct H as (c & v & H & H1 & H2). assert (H'' := H).
       eapply subterm_type in H; eauto. destruct H. inversion H; subst. apply canonical_channel in H6; auto.
       destruct H6; subst. right. left. assert (H''' := H''). apply subterm_swap with (t' := tm_unit) in H''.
-      destruct H''. exists [x0]. simpl. eexists. intros.  eapply cs_give; eauto. eapply subterm_bounded in H'''; eauto.
+      destruct H''. exists x0. simpl. eexists. eexists. intros. eapply cs_sub; eauto. eapply cs_give; eauto. eapply subterm_bounded in H'''; eauto.
       simpl in H'''. destruct H'''. auto.
     (* + destruct H as (f & H & H1). right. left. do 2 eexists. eapply cs_sub. eapply H. *)
       (* apply subterm_swap with (t' := tm_unit) in H. destruct H. eapply H. *)
     + destruct H as (f & H & H1). right. left. assert (H'' := H). apply subterm_swap with (t' := tm_unit) in H.
-      destruct H. exists [f; x], chs. intros. eauto.
+      destruct H. exists x, chs, (thrds ++ [f]). eapply cs_sub; eauto.
 Qed.
 
-(* Theorem cfg_preservation : forall c, *)
-(*     match c with *)
-(*     | Config chs thrds => match thrds with *)
-(*                          | [] => True *)
-(*                          | h :: t => forall h' T chs' f, empty ⊢ h ∈ T -> *)
-(*                                                      cfg_step (Config chs (h::t)) (Config chs' (f ++ [h'] ++ t)) -> *)
-(*                                                      empty ⊢ h' ∈ T *)
-(*                          end *)
-(*     end. *)
-(* Proof. *)
-(*   intros [chs thrds]. *)
-(*   destruct thrds as [|h t]; trivial. *)
-(*   intros. generalize dependent T. remember (f ++ [h'] ++ t). destruct l. *)
-(*   - destruct f; inversion Heql. *)
-(*   - induction H0; intros. *)
+Theorem cfg_preservation : forall c,
+    match c with
+    | Config chs thrds => match thrds with
+                         | [] => True
+                         | h :: t => forall h' T chs' t', empty ⊢ h ∈ T ->
+                                                   cfg_step (Config chs (h :: t)) (Config chs' (h' :: t')) ->
+                                                   empty ⊢ h' ∈ T
+                         end
+    end.
+Proof.
+  intros [chs thrds].
+  destruct thrds as [|h t]; trivial.
+  intros. generalize dependent T. inversion H0; subst; intros.
+  - inversion H. subst. eauto.
+  - inversion H. subst. Abort.

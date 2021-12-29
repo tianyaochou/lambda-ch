@@ -31,6 +31,7 @@
 
 \title{Simply Typed Lambda Calculus with Channel}
 \author{Tianyao Zhou (202101640)}
+\date{December 29, 2021}
 
 \begin{document}
 
@@ -45,7 +46,7 @@ Elements of \lambdach is inspired by Simon John Fowler\cite{fowler2019typed}.
 
 \subsection{Syntax}
 
-\begin{align*}
+\begin{gather*}
     \begin{array}[]{rrl}
         t & := & x                  \\
           &  | & \lam{x}{T}{t}      \\
@@ -58,7 +59,7 @@ Elements of \lambdach is inspired by Simon John Fowler\cite{fowler2019typed}.
           &  | & \mkch{T}           \\
           &  | & \channel{n}{T}
     \end{array}
-\end{align*}
+\end{gather*}
 
 The first rule is variable $x$.
 
@@ -437,18 +438,18 @@ in a modular manner and this is the method used in Fowler's paper\cite{fowler201
 
 In the original paper\cite{fowler2019typed}, the author used process calculi to represent evaluation configuration.
 However, it's merely a way to represent threads and bind channel identification to a buffer(a list). Besides in the
-paper\cite{fowler2019typed}, it also mentions canonical form of configuration, which is very similar to two list, one of which
-represents channels and the other represents threads.
+paper\cite{fowler2019typed}, it also mentions canonical form of configuration, which is very similar to two lists, one of which
+represents channels and the other represents threads. So in this project, I modeled the configuration as two lists.
 
 \subsection{How to capture concurrency?}
 
 There are many ways to capture concurrency of programs. One is true concurrency, which allows multiple
-threads to progress in one step. Another one is interleaved execution, which undeterministically select
+threads to progress in one step. Another one is interleaved execution, which nondeterministically select
 one thread to progress in one step.
 
 However, real-world concurrent programs always comes with a scheduler, which only allows some threads to
 be executed at the same time and may or may not be biased. To make this project simpler, we only reduce the
-first expression in the thread list and append the forked thread to the end. This is not concurrency in any
+first expression in the thread list and append the forked thread to the end, though this is not concurrency in any
 sense. We could improve on this, but I don't know how to do this. What I have in mind is that similar to
 evaluation context of terms, we can have context for a list like $heads + [t] + tails$ saying that there are
 some elements before $t$ represented by $heads$ and some elements after $t$ represented by $tails$.
@@ -460,12 +461,14 @@ The main issue here is how and where we describe a term to be a value in evaluat
 We can describe it as an inductive type and embed the type in the term definition.
 When defining the structure of evaluation contexts, it naturally fits in. However, if one type of
 expression could both be a value and a reducible term, for example the tuple expression, it will appear
-both in the definition of values and terms. It seems a bit redundant.
+both in the definition of values and terms. This seems a bit redundant.
 
-We can also use a predicate to describe it. It is more general than the former method, and allows for
+We can also use a predicate to describe a term to be a value. It is more general than the former method, and allows
 a cleaner definition of terms.
 
 In this project, I chose the latter way.
+
+\bigbreak
 
 If we don't embed value in evaluation contexts' definitioin, we need another way to say the evaluation context
 is well-formed.
@@ -500,10 +503,12 @@ progress the same way as STLC.
 
 However, this rule seems a bit weird. Now that I've chosen the contextual operational, which allows us to
 pinpoint the next sub-epxression to be evaluated, we can state this as a special case in the progress theorem.
-Clearly this progress now is a weak 
+Clearly this progress can only be a weak progress theorem, so why not show the "weakness" in the theorem
+definition by treating receiving from a empty channel a specail case instead of adding strange rules in operational
+semantics?
 
-Alternatively, we can seperate progress theorem at term level and at configuration level by making all
-concurrency-related expression special cases of progress theorem at term level. This also alows for cleaner
+Besides, we can seperate progress theorem at term level and at configuration level by making all
+concurrency-related expression special cases of progress theorem at term level. This also allows cleaner
 organization of proofs because we can use progress theorem at term level when proving progress theorem at
 configuration level.
 
@@ -542,7 +547,7 @@ If you understand the problem, it is very natural to come up with one when you g
 
 What I don't like Coq is that there are many house-keeping things you need to do when proving like
 duplicating hypotheses, generalizing terms and remember terms before induction. And the standard library
-is not as comfortable to use as Haskell's. It is not built around type classes.
+is not as comfortable to use as Haskell's, possibly because it is not built around type classes.
 
 \printbibliography
 

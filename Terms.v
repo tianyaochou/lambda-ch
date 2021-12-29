@@ -1,7 +1,5 @@
 From Coq Require Import Strings.String.
-From Coq Require Import FSets.FMapList.
 From CHSTLC Require Export Maps.
-From CHSTLC Require Import Id.
 
 Inductive ty : Type :=
 | Ty_Unit : ty
@@ -57,7 +55,6 @@ Inductive value : tm -> Prop :=
 | v_unit : value <{unit}>
 | v_abs : forall x T y, value <{\x : T, y}>
 | v_ch : forall n T, value (tm_ch n T)
-(* | v_var : forall x, value (tm_var x) *)
 .
 
 Global Hint Constructors value : core.
@@ -168,7 +165,6 @@ Proof.
   - inversion H.
   - exists x0, y. inversion H. reflexivity.
   - inversion H.
-  (* - inversion H. inversion H3. *)
 Qed.
 
 Lemma canonical_channel : forall c T, empty ⊢ c ∈ (Ty_Ch T) -> value c -> exists n, c = tm_ch n T.
@@ -194,10 +190,10 @@ Qed.
 
 Theorem progress : forall t T, empty ⊢ t ∈ T ->
                                   value t \/ (exists t', step t t')
-                                                  \/ exists E, (exists T, fillCtx E (tm_mkch T) t) \/
-                                                           (exists c, fillCtx E (tm_take c) t /\ value c) \/
-                                                           (exists c v, fillCtx E (tm_give c v) t /\ value c /\ value v) \/
-                                                           (exists f, fillCtx E (tm_fork f) t /\ value f)
+                                  \/ exists E, (exists T, fillCtx E (tm_mkch T) t) \/
+                                     (exists c, fillCtx E (tm_take c) t /\ value c) \/
+                                     (exists c v, fillCtx E (tm_give c v) t /\ value c /\ value v) \/
+                                     (exists f, fillCtx E (tm_fork f) t /\ value f)
 .
 Proof.
   intros. remember empty.

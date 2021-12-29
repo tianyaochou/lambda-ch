@@ -137,11 +137,32 @@ end.
       destruct H. exists x, chs, (thrds ++ [f]). eapply cs_sub; eauto.
 Qed.
 
+Fixpoint all_typed (l : list tm) (T : ty) :=
+match l with
+| [] => True
+| h :: t => empty ⊢ h ∈ T /\ all_typed t T
+end.
+
+Fixpoint channels_typed (t : tm) (chs : channels) :=
+match t with
+| tm_var x => True
+| tm_abs x T t => channels_typed t chs
+| tm_unit => True
+| tm_app t1 t2 => channels_typed t1 chs /\ channels_typed t2 chs
+| tm_let x t1 t2 => channels_typed t1 chs /\ channels_typed t2 chs
+| tm_fork t => channels_typed t chs
+| tm_give t1 t2 => channels_typed t1 chs /\ channels_typed t2 chs
+| tm_take t => channels_typed t chs
+| tm_mkch T => True
+| tm_ch n T => exists b, nth_error chs n = Some b /\ all_typed b T
+end.
+
 Theorem cfg_preservation : forall c,
     match c with
     | Config chs thrds => match thrds with
                          | [] => True
-                         | h :: t => forall h' T chs' t', empty ⊢ h ∈ T ->
+                         | h :: t => forall h' T chs' t', empty ⊢ h ∈ T -> ~ value h ->
+                                                   channels_typed h chs ->
                                                    cfg_step (Config chs (h :: t)) (Config chs' (h' :: t')) ->
                                                    empty ⊢ h' ∈ T
                          end
@@ -149,6 +170,12 @@ Theorem cfg_preservation : forall c,
 Proof.
   intros [chs thrds].
   destruct thrds as [|h t]; trivial.
-  intros. generalize dependent T. inversion H0; subst; intros.
-  - inversion H. subst. eauto.
-  - inversion H. subst. Abort.
+  intros. generalize dependent T. inversion H2; subst; intros; try (inversion H; subst; eauto; reflexivity).
+  - simpl in H1. destruct H1 as (b & H1 & H3). assert (Some b = Some (h' :: t0)).
+    { rewrite <- H1. rewrite <- H9. reflexivity. }
+    inversion H5. subst. simpl in H3. inversion H; subst. inversion H8; subst.
+    destruct H3. assumption.
+  - eapply preservation; eauto.
+  - admit.
+  - contradiction.
+  Abort.

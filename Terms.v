@@ -188,7 +188,7 @@ Proof.
   - inversion H0. reflexivity.
 Qed.
 
-Theorem progress : forall t T, empty ⊢ t ∈ T ->
+Theorem term_progress : forall t T, empty ⊢ t ∈ T ->
                                   value t \/ (exists t', step t t')
                                   \/ exists E, (exists T, fillCtx E (tm_mkch T) t) \/
                                      (exists c, fillCtx E (tm_take c) t /\ value c) \/
@@ -199,51 +199,65 @@ Proof.
   intros. remember empty.
   induction H; subst.
   - inversion H.
-  - eauto.
+  - left. constructor.
   - left. constructor.
   - right. destruct IHhas_type1; auto. destruct IHhas_type2; auto.
-    + apply canonical_lambda in H; auto. destruct H as (x & t' & H). subst. eauto.
+    + left. apply canonical_lambda in H; auto. destruct H as (x & t' & H). subst. eauto.
     + destruct H2.
-      * destruct H2. eauto 20.
-      * right. destruct H2. destruct H2 as [[] |[[] |[[] |[] ]]];  eexists; [left | right; left | right; right; left | right; right; right]; eauto.
+      * left.  destruct H2. eauto.
+      * right. destruct H2. destruct H2 as [[] |[[] |[[] |[] ]]]; eexists;
+                              [left | right; left | right; right; left | right; right; right]; eauto.
         { destruct H2. eauto. }
         { destruct H2. destruct a as (a1 & a2 & a3). eauto 20. }
         { destruct H2. eauto. }
-    + destruct H1. destruct H1. left. eauto.
-      destruct H1. right. destruct H1 as [[] |[[] |[[] |[] ]]]; eexists; [left | right; left | right; right; left | right; right; right]; eauto.
+    + destruct H1.
+      * left. destruct H1. eauto.
+      * right. destruct H1. destruct H1 as [[] |[[] |[[] |[] ]]]; eexists;
+                            [left | right; left | right; right; left | right; right; right]; eauto.
       { destruct H1. eauto. }
       { destruct H1 as (v & H1 & H2 & H3). eauto 20. }
       { destruct H1. eauto. }
   - right. destruct IHhas_type1; auto.
     + left. eauto.
-    +  destruct H1 as [[]|]. left. eauto. right. destruct H1. destruct H1 as [[] |[[] |[[] |[] ]]]; eexists; [left | right; left | right; right; left | right; right; right]; eauto.
+    + destruct H1 as [[]|].
+      * left. eauto.
+      * right. destruct H1. destruct H1 as [[] |[[] |[[] |[] ]]]; eexists;
+                              [left | right; left | right; right; left | right; right; right]; eauto.
        { destruct H1. eauto. }
        { destruct H1 as (v & H1 & H2 & H3). eauto 20. }
        { destruct H1. eauto. }
   - right. right. eauto.
-  - left. auto.
+  - left. constructor.
   - right. destruct IHhas_type as [|[|[]]]; eauto.
-    + eauto 20.
-    + destruct H0. eauto 20.
-    + right. destruct H0 as [[] |[[] |[[] |[] ]]]; eexists; [left | right; left | right; right; left | right; right; right]; eauto.
+    + right. eauto 20.
+    + left. destruct H0. eauto.
+    + right. destruct H0 as [[] |[[] |[[] |[] ]]]; eexists;
+               [left | right; left | right; right; left | right; right; right]; eauto.
       { destruct H0. eauto. }
       { destruct H0 as (v & H1 & H2 & H3). eauto 20. }
       { destruct H0. eauto. }
   - right. destruct IHhas_type1; auto.
     + destruct IHhas_type2; eauto.
-      * eauto 20.
-      * destruct H2. destruct H2. left. eauto. destruct H2. right. destruct H2 as [[] |[[] |[[] |[] ]]]; eexists; [left | right; left | right; right; left | right; right; right]; eauto.
+      * right. eauto 20.
+      * destruct H2.
+        destruct H2. left. eauto.
+        destruct H2. right. destruct H2 as [[] |[[] |[[] |[] ]]]; eexists;
+                              [left | right; left | right; right; left | right; right; right]; eauto.
         { destruct H2. eauto. }
         { destruct H2 as (v & H2 & H3 & H4). eauto 20. }
         { destruct H2. eauto. }
-    + destruct H1. destruct H1. left. eauto. destruct H1. right. destruct H1 as [[] |[[] |[[] |[] ]]]; eexists; [left | right; left | right; right; left | right; right; right]; eauto.
-        { destruct H1. eauto. }
-        { destruct H1 as (v & H2 & H3 & H4). eauto 20. }
-        { destruct H1. eauto. }
+    + destruct H1.
+      destruct H1. left. eauto.
+      destruct H1. right. destruct H1 as [[] |[[] |[[] |[] ]]]; eexists;
+                            [left | right; left | right; right; left | right; right; right]; eauto.
+      { destruct H1. eauto. }
+      { destruct H1 as (v & H2 & H3 & H4). eauto 20. }
+      { destruct H1. eauto. }
   - right. destruct IHhas_type as [|[|[]]]; eauto.
-    + eauto 20.
-    + destruct H0. eauto 20.
-    + right. destruct H0 as [[] |[[] |[[] |[] ]]]; eexists; [left | right; left | right; right; left | right; right; right]; eauto.
+    + right. eauto 20.
+    + left. destruct H0. eauto.
+    + right. destruct H0 as [[] |[[] |[[] |[] ]]]; eexists;
+               [left | right; left | right; right; left | right; right; right]; eauto.
       { destruct H0. eauto. }
       { destruct H0 as (v & H1 & H2 & H3). eauto 20. }
       { destruct H0. eauto. }
@@ -304,7 +318,7 @@ Proof.
   - inversion H1; subst. inversion H2; subst. inversion H3; subst. eauto.
 Qed.
 
-Theorem preservation : forall t t' T, empty ⊢ t ∈ T -> step t t' -> empty ⊢ t' ∈ T.
+Theorem term_preservation : forall t t' T, empty ⊢ t ∈ T -> step t t' -> empty ⊢ t' ∈ T.
 Proof.
   intros. generalize dependent T. remember empty. induction H0; intros; subst.
   - inversion H0; subst. inversion H4; subst. eapply subst_preservation; eauto.

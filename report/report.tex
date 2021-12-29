@@ -332,7 +332,7 @@ Weak progress at configuration level is formulated as below.
         \item there exists a term $t'$, a list of channels $chs'$ and a list of threads $thrds'$
                 such that $chs;thrds -> chs';t' :: thrds'$
         \item there exists a program context $E$, a channel $\channel{p}{T}$, such that
-                if $t = E\{\take{(\channel{p}{T})}\}$, then $c_p = []$
+                $t = E\{\take{(\channel{p}{T})}\}$ and $c_p = []$
     \end{enumerate}
 \end{theorem}
 
@@ -514,28 +514,28 @@ configuration level.
 
 This is inspired by the paper\cite{fowler2019typed} this project based on.
 
-\subsection{Information loss due to \sco{induction} tactic}
+% \subsection{Information loss due to \sco{induction} tactic}
 
-When doing induction on a term with complex sub term, \sco{induction} tactic may cause some information loss.
-Usually, we can avoid information loss by substitute the complex term with a variable using \sco{remember} tactic, 
-making the term we do induction on the most general form.
+% When doing induction on a term with complex sub term, \sco{induction} tactic may cause some information loss.
+% Usually, we can avoid information loss by substitute the complex term with a variable using \sco{remember} tactic, 
+% making the term we do induction on the most general form.
 
-Besides there is a smarter tactic \sco{dependent induction}. However, I don't understand it so I don't use it.
+% Besides there is a smarter tactic \sco{dependent induction}. However, I don't understand it so I don't use it.
 
-In \textit{Logical Foundations}, it says
-\begin{quote}
-    One potentially confusing feature of the induction tactic is that it will let you try to
-    perform an induction over a term that isn't sufficiently general.\cite{Pierce:SF1}
-\end{quote}
+% In \textit{Logical Foundations}, it says
+% \begin{quote}
+%     One potentially confusing feature of the induction tactic is that it will let you try to
+%     perform an induction over a term that isn't sufficiently general.\cite{Pierce:SF1}
+% \end{quote}
 
-In my case, it turns out that \sco{induction} need the term to be the most general form.
+% In my case, it turns out that \sco{induction} need the term to be the most general form.
 
 \section{Experience with Coq}
 
-I really like the expressiveness of Coq. I can model inductively defined concepts effortlessly. It
+I really like the expressiveness of Coq. I can model inductively defined concepts define theorems easily. It
 also helps you keep track of hypotheses and goals when doing proofs, and it forces you to consider
 all the cases, so you don't make mistakes. When modeling complicated problems, it is easy for people to
-miss something in their proofs. However with Coq, either you model the problem in a wrong way or
+miss something in their proofs. However with Coq, either you modeled the problem in a wrong way or
 you get stuck when proving. There is no tricks here.
 
 However, in Coq, it is really tempting to blindly try \sco{inversion}, \sco{induction} or other tactics.

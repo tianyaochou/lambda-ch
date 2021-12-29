@@ -11,6 +11,8 @@ Inductive config : Type :=
 | Config : channels -> list tm -> config
 .
 
+(* Operations on channel *)
+
 Fixpoint update {A} (n : nat) (a : A) (l : list A) : (list A) :=
 match l with
 | [] => l
@@ -28,6 +30,8 @@ match chs with
           | S n' => h :: (give_chs n' v t)
           end
 end.
+
+(* Configuration reduction rule *)
 
 Inductive cfg_step : config -> config -> Prop :=
 | cs_give : forall n T v chs thrds,
@@ -62,6 +66,7 @@ Proof.
   intros. apply nth_error_Some. intros contr. rewrite <- H in contr. inversion contr.
 Qed.
 
+(* Swap the term filling a ectx with a new one, you can get a new result *)
 Lemma subterm_swap : forall E t t' result, fillCtx E t result -> exists result', fillCtx E t' result'.
 Proof.
   induction E; intros; eauto.
@@ -74,6 +79,7 @@ Proof.
   - inversion H; subst. eapply IHE in H1. destruct H1. eauto.
 Qed.
 
+(* Predicate stating that all channels occured in t is in chs *)
 Fixpoint channels_bounded (t : tm) (chs : channels) :=
 match t with
 | tm_var x => True
@@ -100,52 +106,51 @@ match c with
                      | [] => True
                      | h :: t => forall T, empty ⊢ h ∈ T -> channels_bounded h chs ->
                                     (value h) \/ (exists h' chs' t', cfg_step c (Config chs' (h' :: t'))) \/
-                                      (exists E n T, fillCtx E (tm_take (tm_ch n T)) h ->
-                                                nth_error chs n = Some [])
+                                      (exists E n T, fillCtx E (tm_take (tm_ch n T)) h /\
+                                                  nth_error chs n = Some [])
                      end
 end.
   intros [chs thrds].
   destruct thrds; auto. intros.
   assert (H' := H).
-  apply progress in H. destruct H as [ | []].
+  apply term_progress in H. destruct H as [ | []].
   - auto.
-  - destruct H. right. left. exists x, chs, thrds. simpl. eauto.
+  - destruct H. right. left. exists x, chs, thrds. eauto.
   - destruct H as [E H]. destruct H as [|[|[]]].
     + destruct H. right. left. assert (H'' := H). eapply subterm_swap in H. destruct H. exists x0. eexists.
       exists thrds. eapply cs_sub; eauto. intros contr. inversion contr.
-    + destruct H as (c & H & H1). assert (H'' := H).
+    + right. destruct H as (c & H & H1). assert (H'' := H).
       eapply subterm_type in H; eauto. destruct H. inversion H; subst.
-      apply canonical_channel in H4; auto. destruct H4; subst. right. remember (nth_error chs x0).
-      destruct o.
+      apply canonical_channel in H4; auto. destruct H4; subst. destruct (nth_error chs x0) eqn:Heqo.
       * destruct b.
-        {
-          right. exists E, x0, x. intros. auto.
-        }
+        { right. exists E, x0, x. auto. }
         {
           left. assert (H''' := H''). apply subterm_swap with (t' := t0) in H'''. destruct H'''.
-          exists x1. simpl. eexists. eexists. eapply cs_sub; eauto. intros contr. inversion contr. eapply cs_take.
-          eapply subterm_bounded in H''; eauto. symmetry in Heqo. eauto.
+          exists x1. do 2 eexists.  eapply cs_sub; eauto. intros contr. inversion contr.
+          eapply cs_take. eapply subterm_bounded in H''; eauto. eauto.
         }
-      * eapply subterm_bounded in H''; eauto. simpl in H''. symmetry in Heqo. apply nth_error_None in Heqo.
-        lia.
-    + destruct H as (c & v & H & H1 & H2). assert (H'' := H).
+      * eapply subterm_bounded in H''; eauto. simpl in H''. apply nth_error_None in Heqo. lia.
+    + right. left.
+      destruct H as (c & v & H & H1 & H2). assert (H'' := H).
       eapply subterm_type in H; eauto. destruct H. inversion H; subst. apply canonical_channel in H6; auto.
-      destruct H6; subst. right. left. assert (H''' := H''). apply subterm_swap with (t' := tm_unit) in H''.
-      destruct H''. exists x0. simpl. eexists. eexists. intros. eapply cs_sub; eauto. intros contr. inversion contr.
+      destruct H6; subst. assert (H''' := H''). apply subterm_swap with (t' := tm_unit) in H''.
+      destruct H''. exists x0. do 2 eexists. intros. eapply cs_sub; eauto. intros contr. inversion contr.
       eapply cs_give; eauto. eapply subterm_bounded in H'''; eauto.
-      simpl in H'''. destruct H'''. auto.
+      simpl in H'''. destruct H'''. assumption.
     (* + destruct H as (f & H & H1). right. left. do 2 eexists. eapply cs_sub. eapply H. *)
       (* apply subterm_swap with (t' := tm_unit) in H. destruct H. eapply H. *)
-    + destruct H as (f & H & H1). right. left. assert (H'' := H). apply subterm_swap with (t' := tm_unit) in H.
+    + right. left. destruct H as (f & H & H1). assert (H'' := H). apply subterm_swap with (t' := tm_unit) in H.
       destruct H. exists x, chs, (thrds ++ [f]). eapply cs_sub; eauto. intros contr. inversion contr.
 Qed.
 
+(* Predicate stating that all terms in list l is of type T *)
 Fixpoint all_typed (l : list tm) (T : ty) :=
 match l with
 | [] => True
 | h :: t => empty ⊢ h ∈ T /\ all_typed t T
 end.
 
+(* Predicate stating that all terms in each channel is typed according to its reference in term t *)
 Fixpoint channels_typed (t : tm) (chs : channels) :=
 match t with
 | tm_var x => True
@@ -161,7 +166,7 @@ match t with
 end.
 
 Lemma subterm_channels_typed : forall E t result chs, fillCtx E t result -> channels_typed result chs ->
-                                        channels_typed t chs.
+                                                 channels_typed t chs.
 Proof.
   induction E; intros; inversion H; subst; eauto; simpl in H0; destruct H0; eauto.
 Qed.
@@ -185,9 +190,9 @@ Proof.
   induction H2; intros; inversion Heqc; inversion Heqc0; subst; intros; try (inversion H; subst; try inversion H3; subst; eauto; reflexivity).
   - simpl in H2. destruct H2 as (b & H2 & H4). assert (Some b = Some (h' :: t)).
     { rewrite <- H0. rewrite <- H2. reflexivity. }
-    inversion H5. subst. simpl in H4. inversion H3; subst. inversion H8; subst.
+    inversion H5; subst. simpl in H4. inversion H3; subst. inversion H8; subst.
     destruct H4. assumption.
-  - eapply preservation; eauto.
+  - eapply term_preservation; eauto.
   - assert (H5' := H5). eapply subterm_type in H5'; eauto. destruct H5'.
     assert (H6' := H6). eapply IHcfg_step in H6'; eauto. eapply ctx_preservation. eapply H6.
     eapply H6'. eapply H0. assumption. assumption. eapply subterm_channels_typed; eauto.

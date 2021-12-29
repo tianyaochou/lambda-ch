@@ -1,0 +1,549 @@
+\documentclass{article}
+
+\usepackage[english]{babel}
+
+\usepackage{biblatex}
+\usepackage{hyperref}
+\usepackage{url}
+\usepackage{semantic}
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{stmaryrd}
+\usepackage{csquotes}
+
+\newtheorem{theorem}{Theorem}
+
+\bibliography{report}
+
+\newcommand{\lambdach}{$\lambda_{ch}$}
+\newcommand{\sco}[1]{\textsf{#1}}
+\newcommand{\lam}[3]{\backslash #1 : #2, #3}
+\newcommand{\unit}{\sco{unit}}
+\newcommand{\letin}[3]{\sco{let } #1 = #2 \sco{ in } #3}
+\newcommand{\fork}[1]{\sco{fork }#1}
+\newcommand{\give}[2]{\sco{give } #1\ #2}
+\newcommand{\take}[1]{\sco{take } #1}
+\newcommand{\mkch}[1]{\sco{mkCh } #1}
+\newcommand{\channel}[2]{\sco{Ch }#1\ #2}
+
+\newcommand{\Unit}{\sco{Unit}}
+\newcommand{\Chan}[1]{\sco{Chan }#1}
+
+\title{Simply Typed Lambda Calculus with Channel}
+\author{Tianyao Zhou (202101640)}
+
+\begin{document}
+
+\maketitle
+
+\section{Project Description}
+
+In this project, we formalize Simply Typed Lambda Calculus extended with asynchronized message-passing channels(referred as \lambdach below)
+and formulate and prove progress and preservation theorem on both the term level and the configuration level.
+
+Elements of \lambdach is inspired by Simon John Fowler\cite{fowler2019typed}.
+
+\subsection{Syntax}
+
+\begin{align*}
+    \begin{array}[]{rrl}
+        t & := & x                  \\
+          &  | & \lam{x}{T}{t}      \\
+          &  | & \unit              \\
+          &  | & t\ t               \\
+          &  | & \letin{x}{t}{t}    \\
+          &  | & \fork{t}           \\
+          &  | & \give{c}{t}        \\
+          &  | & \take{c}           \\
+          &  | & \mkch{T}           \\
+          &  | & \channel{n}{T}
+    \end{array}
+\end{align*}
+
+The first rule is variable $x$.
+
+The second rule is abstraction on $x$ of type $T$ in term $t$.
+
+The third rule is unit value.
+
+The forth rule is let expression.
+
+The fifth rule is fork expression, which fork a new thread.
+
+The sixth rule is send expression, which sends $t$ to a channel $c$.
+
+The seventh rule is receive expression, which receives an value from a channel $c$.
+
+The eighth rule is channel creation expression, which create a new channel for communication.
+
+The ninth rule is intermidiate representation of a channel on data of type $T$ and
+a natural number identification $n$.
+
+\subsection{Types}
+
+\begin{gather*}
+    \begin{array}[]{rrl}
+        T & := & \Unit  \\
+          &  | & T -> T \\
+          &  | & \Chan{T}
+    \end{array}
+\end{gather*}
+
+The first rule is \Unit\ type with only one inhabitant \unit.
+
+The second rule is function type.
+
+The third rule is channel type, which only carries data of type $T$.
+
+\subsubsection{Typing Rules}
+
+\begin{gather*}
+    \inference{
+        \Gamma[x] = T
+    }{
+        \Gamma |- x : T
+    }\\
+    \\
+    \inference{
+        x : T, \Gamma |- t : T'
+    }{
+        \Gamma |- \lam{x}{T}{t} : T -> T'
+    }\\
+    \\
+    \inference{}{
+        \Gamma |- unit : Unit
+    }\\
+    \\
+    \inference{
+        \Gamma |- t_1 : T & \Gamma |- t_2 : T -> T'
+    }{
+        \Gamma |- t_1\ t_2 : T'
+    }\\
+    \\
+    \inference{
+        \Gamma |- t_1 : T & x : T, \Gamma |- t_2 : T'
+    }{
+        \Gamma |- \letin{x}{t_1}{t_2} : T'
+    }\\
+    \\
+    \inference{
+        \Gamma |- t : Unit -> T
+    }{
+        \Gamma |- \fork{t} : Unit
+    }\\
+    \\
+    \inference{
+        \Gamma |- c : \Chan{T} & \Gamma |- t : T
+    }{
+        \Gamma |- \give{c}{t} : Unit
+    }\\
+    \\
+    \inference{
+        \Gamma |- c : \Chan{T}
+    }{
+        \Gamma |- \take{c} : T
+    }\\
+    \\
+    \inference{}{
+        \Gamma |- \mkch{T} : \Chan{T}
+    }\\
+    \\
+    \inference{}{
+        \Gamma |- \channel{n}{T} : \Chan{T}
+    }
+\end{gather*}
+
+\subsection{Configuration}
+
+The configuration consists of a list of channels and a list of threads. Each channel is a list of terms
+and each thread is a term that's either under evaluation or a value.
+
+    $$config := [c_0,\dots,c_n];[e_1,\dots,e_m]$$
+
+\subsection{Operational Semantics}
+
+\subsubsection{Evaluation Context}
+
+The evaluation context is defined below.
+
+\begin{gather*}
+    \begin{array}{rrl}
+        E & := & \circ  \\
+          & |  & E\ t    \\
+          & |  & t\ E    \\
+          & |  & \letin{x}{E}{t} \\
+          & |  & \fork{E} \\
+          & |  & \give{E}{t} \\
+          & |  & \give{t}{E} \\
+          & |  & \take{E}
+    \end{array}
+\end{gather*}
+
+And context filling rules.
+
+\begin{gather*}
+    \inference{}{
+        e = \circ\{e\}
+    }\\
+    \\
+    \inference{
+        e_1 = E\{e\}
+    }{
+        e_1\ e_2 = (E\ t)\{e\}
+    }\\
+    \\
+    \inference{
+        value\ v_1 & e_2 = E\{e\}
+    }{
+        v_1\ e_2 = (v_1\ E)\{e\}
+    }\\
+    \\
+    \inference{
+        e_1 = E\{e\}
+    }{
+        \letin{x}{e_1}{t} = (\letin{x}{E}{t})\{e\}
+    }\\
+    \\
+    \inference{
+        e_1 = E\{e\}
+    }{
+        \fork{e_1} = (\fork{E})\{e\}
+    }\\
+    \inference{
+        e_1 = E\{e\}
+    }{
+        \give{e_1}{e_2} = (\give{E}{e_2})\{e\}
+    }\\
+    \\
+    \inference{
+        value\ v_1 & e_2 = E\{e\}
+    }{
+        \give{v_1}{e_2} = (\give{v_1}{E})\{e\}
+    }\\
+    \\
+    \inference{
+        e_1 = E\{e\}
+    }{
+        \take{e_1} = (\take{E})\{e\}
+    }
+\end{gather*}
+
+\subsubsection{Term-level rules}
+
+\begin{gather*}
+    \inference{
+        value\ v
+    }{
+        \lam{x}{T}{t}\ v -> t[x/v]
+    }\\
+    \\
+    \inference{
+        value\ v
+    }{
+        \letin{x}{v}{t} -> t[x/v]
+    }\\
+    \\
+    \inference{
+        e -> e'
+    }{
+        E\{e\} -> E\{e'\}
+    }
+\end{gather*}
+
+\subsubsection{Configuration-level rules}
+
+\begin{gather*}
+    \inference{}{
+        [c_0,\dots,c_n];[fork (\lam{x}{\Unit}{t}),\dots,e_m] -> [c_0,\dots,c_n];[\unit,\dots,e_m,t]
+    }\\
+    \\
+    \inference{
+        value\ v
+    }{
+        [c_0,\dots,c_n];[\give{(\channel{p}{T})}{v},\dots,e_m] ->
+        [c_0,\dots,c_p + [v],\dots,c_n];[\unit,\dots,e_m]
+    }\\
+    \\
+    \inference{}{
+        [c_0,\dots,c_p = [v]+c_p',\dots,c_n];[\take{(\channel{p}{T})},\dots,e_m] ->
+        [c_0,\dots,c_p',\dots,c_n];[v,\dots,e_m]
+    }\\
+    \\
+    \inference{
+        e -> e'
+    }{
+        [c_0,\dots,c_n];[E\{e\},\dots,e_m] ->
+        [c_0,\dots,c_n];[E\{e'\},\dots,e_m]
+    }\\
+    \\
+    \inference{
+        \lnot value\ e &
+        [c_0,\dots,c_n];[e,\dots,e_m] ->
+        [c_0',\dots,c_p'];[e',\dots,e_q]
+    }{
+        [c_0,\dots,c_n];[E\{e\},\dots,e_m] ->
+        [c_0',\dots,c_p'];[E\{e'\},\dots,e_q]
+    }\\
+    \\
+    \inference{
+        value\ v
+    }{
+        [c_0,\dots,c_n];[v,e_1,\dots,e_m] ->
+        [c_0,\dots,c_n];[e_1,\dots,e_m]
+    }
+\end{gather*}
+
+\subsection{Progress and Preservation Theorem}
+
+Progress at term level is formulated as below.
+
+\begin{theorem}
+    For all closed term $t$, if $t$ is of type $T$, then one of
+    \begin{enumerate}
+        \item $t$ is a value
+        \item there exists a term $t'$, such that $t -> t'$
+        \item there exists a evaluation context $E$, such one of
+                \begin{enumerate}
+                    \item there exists a type T, such that $t = E\{\mkch{T}\}$
+                    \item there exists a value $c$, such that $t = E\{\take{c}\}$
+                    \item there exists two values $c$ and $v$, such that $t = E\{\give{c}{v}\}$
+                    \item there exists a value $f$, such that $t = E\{\fork{f}\}$
+                \end{enumerate}
+              holds
+    \end{enumerate}
+    holds.
+\end{theorem}
+
+Preservation at term level is formulated as below.
+
+\begin{theorem}
+    For all closed term $t$ of type $T$ and $t'$, if $t -> t'$, then $t'$ is also of type $T$.
+\end{theorem}
+
+Weak progress at configuration level is formulated as below.
+
+\begin{theorem}
+    For all configuration consists of a list of channels $chs$ and a list of threads $thrds$,
+    if $thrds = t :: tail'$ and $t$ is a closed term of type $T$, and all channels refered in $t$ is
+    in $chs$, then one of
+    \begin{enumerate}
+        \item $t$ is a value
+        \item there exists a term $t'$, a list of channels $chs'$ and a list of threads $thrds'$
+                such that $chs;thrds -> chs';t' :: thrds'$
+        \item there exists a program context $E$, a channel $\channel{p}{T}$, such that
+                if $t = E\{\take{(\channel{p}{T})}\}$, then $c_p = []$
+    \end{enumerate}
+\end{theorem}
+
+Preservation theorem at configuration level is formulated as below.
+
+\begin{theorem}
+    For all configuration consists of a list of channels $chs$, two list of threads $thrds$ and $thrds'$ and a closed term $t'$,
+    if $thrds = t :: tail'$ and $t$ is a closed term of type $T$ and $t$ is not a value, and all channels
+    in $chs$ are the typed according to references in $t$, and $chs;thrds -> chs';t' :: thrds'$
+    then $t'$ is also of type $T$.
+\end{theorem}
+
+\section{Problems}
+
+\subsection{How to model the operational semantics of \lambdach?}
+
+There are different ways of writing small-step semantics. One is structural operational semantics,
+which captures the evaluation order of a certain type of expression by a series of rules that evaluates
+sub-expressions.
+
+% For example, a plus expression $plus\ e_1\ e_2$ is modeled by
+
+% \begin{gather*}
+%     \inference{
+%         e_1 -> e_1'
+%     }{
+%         plus\ e_1\ e_2 -> plus\ e_1'\ e_2
+%     }\\
+%     \\
+%     \inference{
+%         value\ v_1 & e_2 -> e_2'
+%     }{
+%         plus\ v_1\ e_2 -> plus\ v_1\ e_2'
+%     }\\
+%     \\
+%     \inference{
+%         value\ v_1 & value\ v_2
+%     }{
+%         plus\ v_1\ v_2 -> v_1 + v_2
+%     }
+% \end{gather*}
+
+Another one is contextual operational semantics, which captures evaluation order by evaluation contexts.
+
+% We define evaluation context for plus expression as below.
+
+% \begin{gather*}
+%     \begin{array}[]{rrl}
+%         E & := & \circ \\
+%           &  | & plus\ E\ e \\
+%           &  | & plus\ v\ E \\
+%       \end{array}
+% \end{gather*}
+
+% Besides, we define a set of rules to fill the evaluation context.
+
+% \begin{gather*}
+%     \inference{}{
+%         e = \circ\{e\}
+%     }\\
+%     \\
+%     \inference{
+%         e_1 = E_1\{e\}
+%     }{
+%         plus\ e_1\ e_2 = plus\ E_1\ e_2\{e\}
+%     }\\
+%     \\
+%     \inference{
+%         value\ v_1 & e_2 = E_2\{e\}
+%     }{
+%         plus\ v_1\ e_2 = plus\ v_1\ E_2\{e\}
+%     }
+% \end{gather*}
+
+When writing operational semantics, we can have a general case,
+
+\begin{gather*}
+    \inference{
+        e -> e'
+    }{
+        E\{e\} -> E\{e'\}
+    }
+\end{gather*}
+
+% And a base case for plus,
+and base cases for expressions in the language.
+
+% \begin{gather*}
+%     \inference{
+%         value\ v_1 & value\ v_2
+%     }{
+%         plus\ v_1\ v_2 -> v_1 + v_2
+%     }
+% \end{gather*}
+
+They are equivalent. But the latter has some superficial advantages. It makes writing rules simpler
+and proof cleaner\cite{harper2016practical}.
+
+I chose to model \lambdach with contextual operational semantics, because it allows one organize proof
+in a modular manner and this is the method used in Fowler's paper\cite{fowler2019typed}.
+
+\subsection{How to define configuration?}
+
+In the original paper\cite{fowler2019typed}, the author used process calculi to represent evaluation configuration.
+However, it's merely a way to represent threads and bind channel identification to a buffer(a list). Besides in the
+paper\cite{fowler2019typed}, it also mentions canonical form of configuration, which is very similar to two list, one of which
+represents channels and the other represents threads.
+
+\subsection{How to capture concurrency?}
+
+There are many ways to capture concurrency of programs. One is true concurrency, which allows multiple
+threads to progress in one step. Another one is interleaved execution, which undeterministically select
+one thread to progress in one step.
+
+However, real-world concurrent programs always comes with a scheduler, which only allows some threads to
+be executed at the same time and may or may not be biased. To make this project simpler, we only reduce the
+first expression in the thread list and append the forked thread to the end. This is not concurrency in any
+sense. We could improve on this, but I don't know how to do this. What I have in mind is that similar to
+evaluation context of terms, we can have context for a list like $heads + [t] + tails$ saying that there are
+some elements before $t$ represented by $heads$ and some elements after $t$ represented by $tails$.
+
+\subsection{How to define contextual operational semantics in Coq?}
+
+The main issue here is how and where we describe a term to be a value in evaluation contexts.
+
+We can describe it as an inductive type and embed the type in the term definition.
+When defining the structure of evaluation contexts, it naturally fits in. However, if one type of
+expression could both be a value and a reducible term, for example the tuple expression, it will appear
+both in the definition of values and terms. It seems a bit redundant.
+
+We can also use a predicate to describe it. It is more general than the former method, and allows for
+a cleaner definition of terms.
+
+In this project, I chose the latter way.
+
+If we don't embed value in evaluation contexts' definitioin, we need another way to say the evaluation context
+is well-formed.
+
+We can use a predicate for it. But we can also state it in context filling rules by saying that only
+when the context is well-formed, we can fill it.
+
+When proving theorems, we usually do an induction on evaluation context. I feel the former method may allow simpler
+automation, while the latter requires \sco{inversion} tactic to recover information.
+
+In this project, I chose the latter way because \lambdach is a rather small language.
+
+\subsection{How to formulate progress and preservation theorem?}
+
+Because we have message-passing communication in \lambdach, receiving from an empty channel could cause
+evaluation to stuck and our type system is not powerful enough to guarantee progress property.
+The progress rule statement in \textit{Programming Language Foundations} is not
+suitable here.
+
+At the beginning, we planned to model the language with structural operational semantics.
+And Vlad sugguests that we could add a busy-waiting rule when evaluation gets stuck and state
+progress the same way as STLC.
+
+\begin{gather*}
+    \inference{
+        c_p = []
+    }{
+        [c_0,\dots,c_p,\dots,c_n];[\take{(\channel{p}{T})},e_1,\dots,e_m] ->
+        [c_0,\dots,c_p,\dots,c_n];[\take{(\channel{p}{T})},e_1,\dots,e_m]
+    }
+\end{gather*}
+
+However, this rule seems a bit weird. Now that I've chosen the contextual operational, which allows us to
+pinpoint the next sub-epxression to be evaluated, we can state this as a special case in the progress theorem.
+Clearly this progress now is a weak 
+
+Alternatively, we can seperate progress theorem at term level and at configuration level by making all
+concurrency-related expression special cases of progress theorem at term level. This also alows for cleaner
+organization of proofs because we can use progress theorem at term level when proving progress theorem at
+configuration level.
+
+This is inspired by the paper\cite{fowler2019typed} this project based on.
+
+\subsection{Information loss due to \sco{induction} tactic}
+
+When doing induction on a term with complex sub term, \sco{induction} tactic may cause some information loss.
+Usually, we can avoid information loss by substitute the complex term with a variable using \sco{remember} tactic, 
+making the term we do induction on the most general form.
+
+Besides there is a smarter tactic \sco{dependent induction}. However, I don't understand it so I don't use it.
+
+In \textit{Logical Foundations}, it says
+\begin{quote}
+    One potentially confusing feature of the induction tactic is that it will let you try to
+    perform an induction over a term that isn't sufficiently general.\cite{Pierce:SF1}
+\end{quote}
+
+In my case, it turns out that \sco{induction} need the term to be the most general form.
+
+\section{Experience with Coq}
+
+I really like the expressiveness of Coq. I can model inductively defined concepts effortlessly. It
+also helps you keep track of hypotheses and goals when doing proofs, and it forces you to consider
+all the cases, so you don't make mistakes. When modeling complicated problems, it is easy for people to
+miss something in their proofs. However with Coq, either you model the problem in a wrong way or
+you get stuck when proving. There is no tricks here.
+
+However, in Coq, it is really tempting to blindly try \sco{inversion}, \sco{induction} or other tactics.
+This is definitely not a good way of writing proofs, because if you modeled the problem erroneously, you
+can easily waste tens of minutes on it. The better way is to examine the hypotheses and goals carefully
+and see what you need to prove the goal and what is missing from the hypotheses. You need to understand
+the problem before proving it. In many situations, you will need to define some lemmas to help you.
+If you understand the problem, it is very natural to come up with one when you get stuck.
+
+What I don't like Coq is that there are many house-keeping things you need to do when proving like
+duplicating hypotheses, generalizing terms and remember terms before induction. And the standard library
+is not as comfortable to use as Haskell's. It is not built around type classes.
+
+\printbibliography
+
+\end{document}

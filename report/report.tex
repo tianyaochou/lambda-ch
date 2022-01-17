@@ -255,7 +255,11 @@ And context filling rules.
 
 \begin{gather*}
     \inference{}{
-        [c_0,\dots,c_n];[fork (\lam{x}{\Unit}{t}),\dots,e_m] -> [c_0,\dots,c_n];[\unit,\dots,e_m,t]
+        [c_0,\dots,c_n];[\fork{(\lam{x}{\Unit}{t})},\dots,e_m] -> [c_0,\dots,c_n];[\unit,\dots,e_m,t]
+    }\\
+    \\
+    \inference{}{
+        [c_0,\dots,c_n];[\mkch{T},\dots,e_m] -> [c_0,\dots,c_n,c_{n+1}];[\channel{n+1}{T},\dots,e_m,t]
     }\\
     \\
     \inference{
